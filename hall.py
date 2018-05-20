@@ -22,6 +22,7 @@ import time
 import datetime
 import RPi.GPIO as GPIO
 import math
+import npyscreen
 
 # Setting points up as doubles. Whenever a state transition occurs in the sensor, it is upped by 0.5.
 # This way I don't have to deal with high and low.
@@ -110,7 +111,28 @@ GPIO.add_event_detect(3, GPIO.BOTH, callback=sensorCallback, bouncetime=200)
 GPIO.setup(4 , GPIO.IN, pull_up_down=GPIO.PUD_UP)
 GPIO.add_event_detect(4, GPIO.BOTH, callback=sensorCallback, bouncetime=200)
 
+class App(npyscreen.StandardApp):
+    def onStart(self):
+        self.addForm("MAIN", MainForm, name="Hello Medium!")
+
+class MainForm(npyscreen.Textfield):
+    # Constructor
+    def create(self):
+        # Add the TitleText widget to the form
+        self.title = self.add(npyscreen.TitleText, name="TitleText", value="Hello World!")
+    # Override method that triggers when you click the "ok"
+    def on_ok(self):
+        self.parentApp.setNextForm(None)
+    # Override method that triggers when you click the "cancel"
+    def on_cancel(self):
+        self.title.value = "Hello World!"
+
+
 print("Done setting up. The round can begin!")
 
 if __name__=="__main__":
+   global MyApp
+   MyApp = App()
+   MyApp.run()
+
    main()
