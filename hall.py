@@ -22,8 +22,8 @@ import time
 import datetime
 import RPi.GPIO as GPIO
 import math
-import npyscreen
-
+import sched, time
+from termcolor import colored
 # Setting points up as doubles. Whenever a state transition occurs in the sensor, it is upped by 0.5.
 # This way I don't have to deal with high and low.
 # GPIO17
@@ -59,19 +59,20 @@ def sensorCallback(channel):
     points4 += 0.5
   # Called if sensor output changes
   timestamp = time.time()
-  print("points1: " + str(int(math.floor(points1))))
-  print("points2: " + str(int(math.floor(points2))))
-  print("points3: " + str(int(math.floor(points3))))
-  print("points4: " + str(int(math.floor(points4))))
   stamp = datetime.datetime.fromtimestamp(timestamp).strftime('%H:%M:%S')
-  if GPIO.input(channel):
+#  if GPIO.input(channel):
     # No magnet
-    print("Sensor HIGH " + stamp + " " + str(channel))
-  else:
+#    print("Sensor HIGH " + stamp + " " + str(channel))
+#  else:
     # Magnet
-    print("Sensor LOW " + stamp + " " + str(channel))
+#    print("Sensor LOW " + stamp + " " + str(channel))
+
+def clear_screen():
+  print(chr(27) + "[2J")
+  return
 
 def main():
+  clear_screen()
   # Wrap main content in a try block so we can
   # catch the user pressing CTRL-C and run the
   # GPIO cleanup function. This will also prevent
@@ -111,28 +112,32 @@ GPIO.add_event_detect(3, GPIO.BOTH, callback=sensorCallback, bouncetime=200)
 GPIO.setup(4 , GPIO.IN, pull_up_down=GPIO.PUD_UP)
 GPIO.add_event_detect(4, GPIO.BOTH, callback=sensorCallback, bouncetime=200)
 
-class App(npyscreen.StandardApp):
-    def onStart(self):
-        self.addForm("MAIN", MainForm, name="Hello Medium!")
-
-class MainForm(npyscreen.Textfield):
-    # Constructor
-    def create(self):
-        # Add the TitleText widget to the form
-        self.title = self.add(npyscreen.TitleText, name="TitleText", value="Hello World!")
-    # Override method that triggers when you click the "ok"
-    def on_ok(self):
-        self.parentApp.setNextForm(None)
-    # Override method that triggers when you click the "cancel"
-    def on_cancel(self):
-        self.title.value = "Hello World!"
-
-
 print("Done setting up. The round can begin!")
+s = sched.scheduler(time.time, time.sleep)
+global timeleft
+timeleft = 300
+
+def update_screen(scheduler):
+  global timeleft
+  global points1
+  global points2
+  global points3
+  global points4
+  clear_screen()
+  print("Time left: " + str(timeleft) + " seconds.")
+  print("\n\n\n\n\n")
+  print(colored("Total Enlightened: " + str(int(math.floor(points1)) + int(math.floor(points2))), 'green'))
+  print(colored("points1: " + str(int(math.floor(points1))), 'green'))
+  print(colored("points2: " + str(int(math.floor(points2))), 'green'))
+  print("\n\n\n")
+  print(colored("Total Resistance: " + str(int(math.floor(points3)) + int(math.floor(points4))), 'blue'))
+  print(colored("points3: " + str(int(math.floor(points3))), 'blue'))
+  print(colored("points4: " + str(int(math.floor(points4))), 'blue'))
+  timeleft-=1
+  s.enter(1,1,update_screen,(scheduler,))
+
+s.enter(1,1,update_screen, (s,))
+s.run()
 
 if __name__=="__main__":
-   global MyApp
-   MyApp = App()
-   MyApp.run()
-
    main()
