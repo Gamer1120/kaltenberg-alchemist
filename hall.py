@@ -17,6 +17,8 @@
 #
 #--------------------------------------
 
+# Note from Gamer1120: I am not proud of this code. It does what it needs to do and is only used for 1 weekend.
+
 # Import required libraries
 import time
 import datetime
@@ -38,6 +40,13 @@ points3=0.0
 # GPIO4
 global points4
 points4=0.0
+global ROUND_LENGTH
+ROUND_LENGTH = 10
+global READ_ONLY_READY_TIME
+READ_ONLY_READY_TIME = 5
+global READY_TIME
+READY_TIME = READ_ONLY_READY_TIME
+
 
 def sensorCallback(channel):
   team = 0
@@ -112,10 +121,26 @@ GPIO.add_event_detect(3, GPIO.BOTH, callback=sensorCallback, bouncetime=200)
 GPIO.setup(4 , GPIO.IN, pull_up_down=GPIO.PUD_UP)
 GPIO.add_event_detect(4, GPIO.BOTH, callback=sensorCallback, bouncetime=200)
 
+def reset_game():
+  global timeleft
+  global points1
+  global points2
+  global points3
+  global points4
+  global READY_TIME
+  READY_TIME = READ_ONLY_READY_TIME
+  timeleft = ROUND_LENGTH
+  points1 = 0
+  points2 = 0
+  points3 = 0
+  points4 = 0
+
+
 print("Done setting up. The round can begin!")
 s = sched.scheduler(time.time, time.sleep)
 global timeleft
-timeleft = 300
+timeleft = ROUND_LENGTH
+
 
 def update_screen(scheduler):
   global timeleft
@@ -123,7 +148,32 @@ def update_screen(scheduler):
   global points2
   global points3
   global points4
+  global READY_TIME
   clear_screen()
+  if READY_TIME > 0:
+    print("The round starts in: " + str(READY_TIME))
+    s.enter(1,1,update_screen,(scheduler,))
+    READY_TIME -= 1
+    return
+  if timeleft == 0:
+    print("Game over!")
+    if (points1 + points2) > (points3 + points4):
+      print("The Enlightened are victorious!")
+    elif (points1 + points2) < (points3 + points4):
+      print("The Resistance are victorious!")
+    else:
+      print("The round was a tie!")
+    print("\n\n\n\nScoreboard:")
+    print(colored("Total Enlightened: " + str(int(math.floor(points1)) + int(math.floor(points2))), 'green'))
+    print(colored("points1: " + str(int(math.floor(points1))), 'green'))
+    print(colored("points2: " + str(int(math.floor(points2))), 'green'))
+    print("\n\n\n")
+    print(colored("Total Resistance: " + str(int(math.floor(points3)) + int(math.floor(points4))), 'blue'))
+    print(colored("points3: " + str(int(math.floor(points3))), 'blue'))
+    print(colored("points4: " + str(int(math.floor(points4))), 'blue'))
+    raw_input("Press any key to start a new round!...")
+    reset_game()
+    clear_screen()
   print("Time left: " + str(timeleft) + " seconds.")
   print("\n\n\n\n\n")
   print(colored("Total Enlightened: " + str(int(math.floor(points1)) + int(math.floor(points2))), 'green'))
@@ -138,6 +188,7 @@ def update_screen(scheduler):
 
 s.enter(1,1,update_screen, (s,))
 s.run()
+
 
 if __name__=="__main__":
    main()
