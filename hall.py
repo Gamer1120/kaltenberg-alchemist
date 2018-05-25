@@ -41,12 +41,17 @@ points3=0.0
 global points4
 points4=0.0
 global ROUND_LENGTH
-ROUND_LENGTH = 10
+ROUND_LENGTH = 30
 global READ_ONLY_READY_TIME
 READ_ONLY_READY_TIME = 5
 global READY_TIME
 READY_TIME = READ_ONLY_READY_TIME
-
+global FIRST_CP
+FIRST_CP = datetime.datetime.fromtimestamp(1527285600)
+global CURRENT_CP
+diff = datetime.datetime.now() - FIRST_CP
+days, seconds = diff.days, diff.seconds
+CURRENT_CP = days * 24 + seconds // 3600
 
 def sensorCallback(channel):
   team = 0
@@ -152,6 +157,7 @@ def update_screen(scheduler):
   clear_screen()
   if READY_TIME > 0:
     print("The round starts in: " + str(READY_TIME))
+    print(CURRENT_CP)
     s.enter(1,1,update_screen,(scheduler,))
     READY_TIME -= 1
     return
