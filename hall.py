@@ -25,7 +25,10 @@ import datetime
 import RPi.GPIO as GPIO
 import math
 import sched, time
+import json
+import subprocess
 from termcolor import colored
+import os
 # Setting points up as doubles. Whenever a state transition occurs in the sensor, it is upped by 0.5.
 # This way I don't have to deal with high and low.
 # GPIO17
@@ -41,7 +44,7 @@ points3=0.0
 global points4
 points4=0.0
 global ROUND_LENGTH
-ROUND_LENGTH = 5
+ROUND_LENGTH = 60
 global READ_ONLY_READY_TIME
 READ_ONLY_READY_TIME = 5
 global READY_TIME
@@ -52,6 +55,27 @@ global CURRENT_CP
 diff = datetime.datetime.now() - FIRST_CP
 days, seconds = diff.days, diff.seconds
 CURRENT_CP = days * 24 + seconds // 3600
+global CONTROLLING_FACTION
+global FNULL
+FNULL = open(os.devnull, 'w')
+global PUMP_1_POINTS
+PUMP_1_POINTS = 0
+global PUMP_2_POINTS
+PUMP_2_POINTS = 0
+global PUMP_3_POINTS
+PUMP_3_POINTS = 0
+global PUMP_4_POINTS
+PUMP_4_POINTS = 0
+
+#0 neutral
+#1 enl
+#2 res
+def controlling_faction(scheduler):
+  output = subprocess.check_output(["curl", "-s", "localhost:8080/v1/info"])
+  json_output = json.loads(output)
+  global CONTROLLING_FACTION
+  CONTROLLING_FACTION = json_output['result']['controllingFaction']
+  s.enter(1,1,controlling_faction,(scheduler,))
 
 def checkpoint_info(cp):
   enl_score = 0
@@ -88,12 +112,12 @@ def sensorCallback(channel):
   # Called if sensor output changes
   timestamp = time.time()
   stamp = datetime.datetime.fromtimestamp(timestamp).strftime('%H:%M:%S')
-#  if GPIO.input(channel):
+  if GPIO.input(channel):
     # No magnet
-#    print("Sensor HIGH " + stamp + " " + str(channel))
-#  else:
+    print("Sensor HIGH " + stamp + " " + str(channel))
+  else:
     # Magnet
-#    print("Sensor LOW " + stamp + " " + str(channel))
+    print("Sensor LOW " + stamp + " " + str(channel))
 
 def clear_screen():
   print(chr(27) + "[2J")
@@ -147,6 +171,15 @@ def reset_game():
   global points3
   global points4
   global READY_TIME
+  global PUMP_1_POINTS
+  PUMP_1_POINTS = 0
+  global PUMP_2_POINTS
+  PUMP_2_POINTS = 0
+  global PUMP_3_POINTS
+  PUMP_3_POINTS = 0
+  global PUMP_4_POINTS
+  PUMP_4_POINTS = 0
+
   READY_TIME = READ_ONLY_READY_TIME
   timeleft = ROUND_LENGTH
   points1 = 0
@@ -169,6 +202,7 @@ def update_screen(scheduler):
   global points4
   global READY_TIME
   global CURRENT_CP
+
   clear_screen()
   diff = datetime.datetime.now() - FIRST_CP
   days, seconds = diff.days, diff.seconds
@@ -184,11 +218,11 @@ def update_screen(scheduler):
   if timeleft == 0:
     print("Game over!")
     f = open("/home/pi/kaltenberg-alchemist/checkpoints/" + str(CURRENT_CP), "a+")
-    if (points1 + points2) > (points3 + points4):
+    if (PUMP_1_POINTS + PUMP_2_POINTS) > (PUMP_3_POINTS + PUMP_4_POINTS):
       print("The Enlightened are victorious!")
       f.write("1\n")
       f.write("0\n")
-    elif (points1 + points2) < (points3 + points4):
+    elif (PUMP_1_POINTS + PUMP_2_POINTS) < (PUMP_3_POINTS + PUMP_4_POINTS):
       print("The Resistance are victorious!")
       f.write("0\n")
       f.write("1\n")
@@ -199,36 +233,45 @@ def update_screen(scheduler):
     enl_score_old, res_score_old, tied_score_old = checkpoint_info(CURRENT_CP - 1)
     enl_score, res_score, tied_score = checkpoint_info(CURRENT_CP)
     print("\n\n\n\nScoreboard for this round:")
-    print(colored("Total Enlightened: " + str(int(math.floor(points1)) + int(math.floor(points2))), 'green'))
-    print(colored("points1: " + str(int(math.floor(points1))), 'green'))
-    print(colored("points2: " + str(int(math.floor(points2))), 'green'))
+    print(colored("Total Enlightened: " + str(int(math.floor(PUMP_1_POINTS)) + int(math.floor(PUMP_2_POINTS))), 'green'))
+    print(colored("Pump 1: " + str(int(math.floor(PUMP_1_POINTS))), 'green'))
+    print(colored("Pump 2: " + str(int(math.floor(PUMP_2_POINTS))), 'green'))
     print("\n\n\n")
-    print(colored("Total Resistance: " + str(int(math.floor(points3)) + int(math.floor(points4))), 'blue'))
-    print(colored("points3: " + str(int(math.floor(points3))), 'blue'))
-    print(colored("points4: " + str(int(math.floor(points4))), 'blue'))
+    print(colored("Total Resistance: " + str(int(math.floor(PUMP_3_POINTS)) + int(math.floor(PUMP_4_POINTS))), 'blue'))
+    print(colored("Pump 3: " + str(int(math.floor(PUMP_3_POINTS))), 'blue'))
+    print(colored("Pump 4: " + str(int(math.floor(PUMP_4_POINTS))), 'blue'))
     print("Previous checkpoint: " + str(CURRENT_CP - 1) + "\nRounds won: " + colored("Enlightened: " + str(enl_score_old), "green") + colored(" Resistance: " + str(res_score_old), "blue") + " Tied: " + str(tied_score_old))
-    print("Current checkpoint: " + str(CURRENT_CP) + "\nRounds won: " + colored("Enlightened: " + str(enl_score), "green") + colored(" Resistance: " + str(res_score), "blue") + " Tied: " + str(tied_score))
+    print("Current checkpoint (excluding this round): " + str(CURRENT_CP) + "\nRounds won: " + colored("Enlightened: " + str(enl_score), "green") + colored(" Resistance: " + str(res_score), "blue") + " Tied: " + str(tied_score))
     raw_input("Press the enter key to start a new round!...")
     clear_screen()
     reset_game()
     clear_screen()
   clear_screen()
   if timeleft != ROUND_LENGTH:
+    cf = CONTROLLING_FACTION
     print("GO! Time left in this round: " + str(timeleft) + " seconds.")
-    print("\n\n\n\n\n\n\n\n\n\n")
-    print(colored("Total Enlightened: " + str(int(math.floor(points1)) + int(math.floor(points2))), 'green'))
-    print(colored("points1: " + str(int(math.floor(points1))), 'green'))
-    print(colored("points2: " + str(int(math.floor(points2))), 'green'))
+    print("\n\n\n\n\n\n\n\n")
+    if cf == "Enlightened":
+      print("The Enlightened are controlling the portal! Only they can earn points!")
+    elif cf == "Resistance":
+      print("The Resistance are controlling the portal! Only they can earn points!")
+    elif cf == "Neutral":
+      print("No-one is controlling the portal! No points are earned!")
+    print("\n")
+    print(colored("Total Enlightened: " + str(int(math.floor(PUMP_1_POINTS)) + int(math.floor(PUMP_2_POINTS))), 'green'))
+    print(colored("Pump 1: " + str(int(math.floor(PUMP_1_POINTS))), 'green'))
+    print(colored("Pump 2: " + str(int(math.floor(PUMP_2_POINTS))), 'green'))
     print("\n\n\n")
-    print(colored("Total Resistance: " + str(int(math.floor(points3)) + int(math.floor(points4))), 'blue'))
-    print(colored("points3: " + str(int(math.floor(points3))), 'blue'))
-    print(colored("points4: " + str(int(math.floor(points4))), 'blue'))
+    print(colored("Total Resistance: " + str(int(math.floor(PUMP_3_POINTS)) + int(math.floor(PUMP_4_POINTS))), 'blue'))
+    print(colored("Pump 3: " + str(int(math.floor(PUMP_3_POINTS))), 'blue'))
+    print(colored("Pump 4: " + str(int(math.floor(PUMP_4_POINTS))), 'blue'))
   else:
     clear_screen()
-  s.enter(1,1,update_screen,(scheduler,))
   timeleft -= 1
+  s.enter(1,1,update_screen,(scheduler,))
 
 s.enter(1,1,update_screen, (s,))
+s.enter(1,1,controlling_faction, (s,))
 s.run()
 
 
