@@ -41,7 +41,7 @@ points3=0.0
 global points4
 points4=0.0
 global ROUND_LENGTH
-ROUND_LENGTH = 30
+ROUND_LENGTH = 5
 global READ_ONLY_READY_TIME
 READ_ONLY_READY_TIME = 5
 global READY_TIME
@@ -52,6 +52,20 @@ global CURRENT_CP
 diff = datetime.datetime.now() - FIRST_CP
 days, seconds = diff.days, diff.seconds
 CURRENT_CP = days * 24 + seconds // 3600
+
+def checkpoint_info(cp):
+  enl_score = 0
+  res_score = 0
+  tied_score = 0
+  lines = [line.strip() for line in open("/home/pi/kaltenberg-alchemist/checkpoints/" + str(cp))]
+  for i, line in enumerate(lines):
+    if i % 2 == 0 and line == 1:
+      enl_score += 1
+    elif i % 2 == 1 and line == 1:
+      res_score += 1
+    elif i % 2 == 1:
+      tied_score += 1
+  return enl_score, res_score, tied_score
 
 def sensorCallback(channel):
   team = 0
@@ -154,22 +168,37 @@ def update_screen(scheduler):
   global points3
   global points4
   global READY_TIME
+  global CURRENT_CP
   clear_screen()
+  diff = datetime.datetime.now() - FIRST_CP
+  days, seconds = diff.days, diff.seconds
+  CURRENT_CP = days * 24 + seconds // 3600
   if READY_TIME > 0:
-    print("The round starts in: " + str(READY_TIME))
-    print(CURRENT_CP)
+    clear_screen()
+    print("GET READY! The round starts in: " + str(READY_TIME))
+    print("You're battling for checkpoint: " + str(CURRENT_CP))
+    print("\n\n\n\n\n\n\n\n\n\n\n")
     s.enter(1,1,update_screen,(scheduler,))
     READY_TIME -= 1
     return
   if timeleft == 0:
     print("Game over!")
+    f = open("/home/pi/kaltenberg-alchemist/checkpoints/" + str(CURRENT_CP), "a+")
     if (points1 + points2) > (points3 + points4):
       print("The Enlightened are victorious!")
+      f.write("1\n")
+      f.write("0\n")
     elif (points1 + points2) < (points3 + points4):
       print("The Resistance are victorious!")
+      f.write("0\n")
+      f.write("1\n")
     else:
       print("The round was a tie!")
-    print("\n\n\n\nScoreboard:")
+      f.write("0\n")
+      f.write("0\n")
+    enl_score_old, res_score_old, tied_score_old = checkpoint_info(CURRENT_CP - 1)
+    enl_score, res_score, tied_score = checkpoint_info(CURRENT_CP)
+    print("\n\n\n\nScoreboard for this round:")
     print(colored("Total Enlightened: " + str(int(math.floor(points1)) + int(math.floor(points2))), 'green'))
     print(colored("points1: " + str(int(math.floor(points1))), 'green'))
     print(colored("points2: " + str(int(math.floor(points2))), 'green'))
@@ -177,20 +206,27 @@ def update_screen(scheduler):
     print(colored("Total Resistance: " + str(int(math.floor(points3)) + int(math.floor(points4))), 'blue'))
     print(colored("points3: " + str(int(math.floor(points3))), 'blue'))
     print(colored("points4: " + str(int(math.floor(points4))), 'blue'))
-    raw_input("Press any key to start a new round!...")
+    print("Previous checkpoint: " + str(CURRENT_CP - 1) + "\nRounds won: " + colored("Enlightened: " + str(enl_score_old), "green") + colored(" Resistance: " + str(res_score_old), "blue") + " Tied: " + str(tied_score_old))
+    print("Current checkpoint: " + str(CURRENT_CP) + "\nRounds won: " + colored("Enlightened: " + str(enl_score), "green") + colored(" Resistance: " + str(res_score), "blue") + " Tied: " + str(tied_score))
+    raw_input("Press the enter key to start a new round!...")
+    clear_screen()
     reset_game()
     clear_screen()
-  print("Time left: " + str(timeleft) + " seconds.")
-  print("\n\n\n\n\n")
-  print(colored("Total Enlightened: " + str(int(math.floor(points1)) + int(math.floor(points2))), 'green'))
-  print(colored("points1: " + str(int(math.floor(points1))), 'green'))
-  print(colored("points2: " + str(int(math.floor(points2))), 'green'))
-  print("\n\n\n")
-  print(colored("Total Resistance: " + str(int(math.floor(points3)) + int(math.floor(points4))), 'blue'))
-  print(colored("points3: " + str(int(math.floor(points3))), 'blue'))
-  print(colored("points4: " + str(int(math.floor(points4))), 'blue'))
-  timeleft-=1
+  clear_screen()
+  if timeleft != ROUND_LENGTH:
+    print("GO! Time left in this round: " + str(timeleft) + " seconds.")
+    print("\n\n\n\n\n\n\n\n\n\n")
+    print(colored("Total Enlightened: " + str(int(math.floor(points1)) + int(math.floor(points2))), 'green'))
+    print(colored("points1: " + str(int(math.floor(points1))), 'green'))
+    print(colored("points2: " + str(int(math.floor(points2))), 'green'))
+    print("\n\n\n")
+    print(colored("Total Resistance: " + str(int(math.floor(points3)) + int(math.floor(points4))), 'blue'))
+    print(colored("points3: " + str(int(math.floor(points3))), 'blue'))
+    print(colored("points4: " + str(int(math.floor(points4))), 'blue'))
+  else:
+    clear_screen()
   s.enter(1,1,update_screen,(scheduler,))
+  timeleft -= 1
 
 s.enter(1,1,update_screen, (s,))
 s.run()
